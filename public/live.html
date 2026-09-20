@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Live Stream</title>
+  <link href="https://vjs.zencdn.net/8.6.1/video-js.css" rel="stylesheet" />
+  <link href="https://unpkg.com/@videojs/themes@1/dist/forest/index.css" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+    #player { width: 100vw; height: 100vh; }
+    .video-js { width: 100%; height: 100%; }
+
+    @media (orientation: landscape) and (max-width: 1024px) {
+      #player, .video-js { width: 100vw; height: 100vh; }
+    }
+    @media (orientation: portrait) and (max-width: 1024px) {
+      #player, .video-js { width: 100vw; height: 56.25vw; max-height: 100vh; }
+    }
+
+    #offline-screen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #0d110d;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      z-index: 99999;
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+    #offline-screen.visible { display: flex; }
+    .offline-icon { display: flex; }
+    .offline-title {
+      font-size: clamp(1.1rem, 2.5vw, 1.6rem);
+      font-weight: 600;
+      color: #c8e6c9;
+    }
+    .offline-sub {
+      font-size: clamp(1rem, 2.2vw, 1.25rem);
+      color: #4a6650;
+      text-align: center;
+      max-width: 480px;
+      line-height: 1.6;
+    }
+    .offline-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #4caf72;
+      font-size: clamp(0.95rem, 2vw, 1.15rem);
+      font-weight: 600;
+      margin-top: 10px;
+      letter-spacing: 0.03em;
+    }
+    .offline-badge span {
+      width: 11px; height: 11px;
+      background: #4caf72;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #4caf72;
+      animation: pulse 2s infinite;
+    }
+    .beta-badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.55);
+      font-size: 0.95rem;
+      font-weight: 700;
+      padding: 5px 16px;
+      border-radius: 20px;
+      margin-top: -8px;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    #unmute-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    #unmute-overlay button {
+      background: rgba(255,255,255,0.15);
+      border: 2px solid rgba(255,255,255,0.5);
+      border-radius: 50%;
+      width: clamp(80px, 15vw, 160px);
+      height: clamp(80px, 15vw, 160px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: background 0.2s;
+    }
+    #unmute-overlay button:hover { background: rgba(255,255,255,0.3); }
+    #unmute-overlay button svg {
+      width: 45%;
+      height: 45%;
+      fill: #fff;
+      margin-left: 8%;
+    }
+  </style>
+</head>
+<body>
+  <div id="offline-screen">
+    <div class="offline-icon">
+      <svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg" width="clamp(160px,30vw,260px)" style="width:clamp(160px,30vw,260px);height:auto;display:block">
+        <rect x="20" y="10" width="160" height="95" rx="8" fill="#1a2e1a"/>
+        <rect x="30" y="20" width="140" height="75" rx="4" fill="#0d110d"/>
+        <line x1="70" y1="105" x2="60" y2="118" stroke="#2d7a4f" stroke-width="3" stroke-linecap="round"/>
+        <line x1="130" y1="105" x2="140" y2="118" stroke="#2d7a4f" stroke-width="3" stroke-linecap="round"/>
+        <line x1="55" y1="118" x2="145" y2="118" stroke="#2d7a4f" stroke-width="3" stroke-linecap="round"/>
+        <polygon points="82,38 82,72 118,55" fill="#1e3d1e" />
+        <rect x="86" y="82" width="4" height="8" rx="2" fill="#2d7a4f" opacity="0.3"/>
+        <rect x="94" y="78" width="4" height="12" rx="2" fill="#2d7a4f" opacity="0.5"/>
+        <rect x="102" y="74" width="4" height="16" rx="2" fill="#2d7a4f" opacity="0.3"/>
+        <rect x="110" y="70" width="4" height="20" rx="2" fill="#2d7a4f" opacity="0.2"/>
+      </svg>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="offline-title">Nenhuma transmissão ao vivo</div>
+      <!-- <div class="beta-badge">BETA</div> -->
+    </div>
+    <div class="offline-sub">No momento não há nenhuma live acontecendo.</div>
+    <div class="offline-badge"><span></span>Você será conectado automaticamente</div>
+  </div>
+
+  <div id="unmute-overlay">
+    <button aria-label="Play">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><polygon points="5,3 19,12 5,21"/></svg>
+    </button>
+  </div>
+  <video id="player" class="video-js vjs-default-skin vjs-theme-forest" autoplay muted playsinline controls></video>
+
+  <script src="https://vjs.zencdn.net/8.6.1/video.min.js"></script>
+  <script>
+    const HLS_URL = `${location.protocol}//${location.host}/bedc6c0f-76ce-45c1-a0d7-44d60350e9db/live/master.m3u8`;
+
+    const player = videojs('player', {
+      fluid: false,
+      liveui: true,
+      touchEnabled: true,
+      html5: {
+        vhs: {
+          overrideNative: true,
+          liveSyncDurationCount: 3,
+          liveMaxLatencyDurationCount: 8,
+          enableLowInitialPlaylist: true,
+          bufferBasedABR: true,
+          experimentalBufferBasedABR: true,
+          handleManifestRedirects: true,
+          useBandwidthFromLocalStorage: false,
+        },
+      },
+      buffer: 4,
+    });
+
+    function seekLive() {
+      if (player.liveTracker && player.liveTracker.isLive()) {
+        player.liveTracker.seekToLiveEdge();
+      }
+    }
+
+    const offlineScreen = document.getElementById('offline-screen');
+
+    function showOffline() {
+      offlineScreen.classList.add('visible');
+      overlay.style.display = 'none';
+    }
+
+    function hideOffline() {
+      offlineScreen.classList.remove('visible');
+      overlay.style.display = 'flex';
+    }
+
+    function load() {
+      fetch(HLS_URL, { method: 'HEAD', cache: 'no-store' })
+        .then(r => {
+          if (r.status === 404) { showOffline(); setTimeout(load, 5000); return; }
+          hideOffline();
+          player.src({ src: HLS_URL, type: 'application/x-mpegURL' });
+          player.play().catch(() => {});
+        })
+        .catch(() => { showOffline(); setTimeout(load, 5000); });
+    }
+
+    player.on('error', () => {
+      const err = player.error();
+      if (err && err.code === 4) { showOffline(); player.error(null); setTimeout(load, 5000); return; }
+      setTimeout(() => { player.error(null); load(); }, 3000);
+    });
+
+    player.on('loadedmetadata', () => { seekLive(); player.play().catch(() => {}); });
+    player.on('canplay', seekLive);
+
+    const overlay = document.getElementById('unmute-overlay');
+    overlay.addEventListener('click', () => {
+      player.muted(false);
+      player.volume(1);
+      seekLive();
+      overlay.style.display = 'none';
+      const el = player.el();
+      const fsReq = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
+      if (fsReq) {
+        fsReq.call(el, { navigationUI: 'hide' }).then(() => {
+          if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock('landscape').catch(() => {});
+          }
+        }).catch(() => {});
+      }
+    });
+
+    player.on('fullscreenchange', () => {
+      if (player.isFullscreen()) {
+        if (screen.orientation && screen.orientation.lock) {
+          screen.orientation.lock('landscape').catch(() => {});
+        }
+      } else {
+        if (screen.orientation && screen.orientation.unlock) {
+          screen.orientation.unlock();
+        }
+      }
+    });
+
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement && screen.orientation && screen.orientation.unlock) {
+        screen.orientation.unlock();
+      }
+    });
+
+    load();
+  </script>
+</body>
+</html>
